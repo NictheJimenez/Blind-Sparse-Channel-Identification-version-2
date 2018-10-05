@@ -1,0 +1,52 @@
+clear all
+close all
+clc
+
+M = 8;
+J = 2;
+Q = 8;
+L = 4;
+P = M + L;
+
+iter0 = 100;
+iter1 = 10;
+ber1 = zeros(1,iter1);
+ber0 = zeros(1,iter0);
+snr = 10:5:45;
+ber = zeros(1,length(snr));
+for m = 1:length(snr)
+    m
+    for k = 1:iter0
+        h1 = randn(L+1,iter1)+1j*randn(L+1,iter1);
+        U1 = 2*(randn(M,iter1*J)>0) - 1 + 1j*(2*(randn(M,iter1*J)>0) - 1);
+        for ell = 1:iter1
+            h = h1(:,ell);
+            U = U1(:,(ell - 1)*J+1:ell*J);
+            eb = sum(sum(abs(U).^2))/(2*M*J);
+            att =  sqrt(eb/2)*10^(-snr(m)/20);
+            H = FBToeplitz(h,M);
+            YJ = H*U + att*(randn(P,J) + 1j*randn(P,J));
+            YJQ = zeros(P+Q-1,J*Q);
+            for n = 1:J
+                YJQ(:,(n-1)*Q+1:n*Q) = FBToeplitz(YJ(:,n),Q);
+            end
+            [ht,Rt,Ut] = ZPblind(YJQ,L);
+            [hm,I] = max(abs(h));
+            ht = ht*h(I)/ht(I);
+            %[h ht]
+            Ufft = fft(YJ);
+            hfft = fft(h,P+Q-1);*ones(1,J);
+            Ur = ifft(Ufft./hfft);
+            Ur1 = Ur(1:M,:);
+            Ur1r = 2*(real(Ur1)>0) - 1;
+            Ur1i = 2*(imag(Ur1)>0) - 1;
+            Uur = real(U);
+            Uui = imag(U);
+            ber1(ell) = (sum(sum(abs(Ur1r-Uur))) + sum(sum(abs(Ur1i-Uui))))/(4*M*J);
+            %pause
+        end
+        ber0(k) = sum(ber1)/iter1;
+    end
+    ber(m) = sum(ber0)/iter0;
+end
+semilogy(snr,ber)
